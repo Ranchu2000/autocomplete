@@ -1,4 +1,4 @@
-# autocomplete submission
+# Autocomplete submission
 
 Explanation of changes:
 
@@ -19,3 +19,10 @@ Explanation of changes:
 | `selectedOptions`|Added|Both search boxes using the same selected options to display selection below|
 | `onSelectOption`|Added|Same rational as `selectedOptions`|
 | `countSelected`|Added|Prevent multiple selction when isMultiple is false|
+
+## Run the code
+
+```sh
+bun install
+bun run dev
+```
