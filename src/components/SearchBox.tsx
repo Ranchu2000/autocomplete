@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import useDebounce from "../utils/debounce";
-import Spinner from "./Spinner";
 import {
   autoUpdate,
   flip,
@@ -8,7 +7,8 @@ import {
   offset,
   shift,
 } from "@floating-ui/react";
-import logo from "../assets/search.png";
+import SearchInput from "./SearchInput";
+import SearchItem from "./SearchItem";
 
 interface Props {
   description: string;
@@ -16,7 +16,11 @@ interface Props {
   placeholder: string;
   options: string[];
   isDebounced: boolean;
-  filterOptions: (options: string[], inputValue: string) => string[];
+  selectedOptions: { [key: string]: boolean };
+  onSelectOption: (option: string, prevState: boolean) => void;
+  isDisabled: boolean;
+  isMultiple: boolean;
+  countSelected: number;
 }
 
 const SearchBox = ({
@@ -25,19 +29,17 @@ const SearchBox = ({
   placeholder,
   options,
   isDebounced,
-  filterOptions,
+  selectedOptions,
+  onSelectOption,
+  isMultiple,
+  isDisabled,
+  countSelected,
 }: Props) => {
   const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
-  const [countSelected, setCountSelected] = useState<number>(0);
-  const [selectedOptions, setSelectedOptions] = useState<{
-    [key: string]: boolean;
-  }>({});
   const [_, setSearchedVal] = useState<string>("");
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [isDisabled, setIsDisabled] = useState(false);
-  const [isMultiple, setIsMultiple] = useState(false);
   const [searchBoxContent, setsearchBoxContent] = useState<string>("");
 
   const { refs, floatingStyles, context } = useFloating({
@@ -58,23 +60,15 @@ const SearchBox = ({
   }, [isOpen, refs.reference, refs.floating, context.update]);
 
   useEffect(() => {
-    const initialSelectedOptions: { [key: string]: boolean } = {};
-    options.forEach((option) => {
-      initialSelectedOptions[option] = false;
-    });
-    setSelectedOptions(initialSelectedOptions);
-  }, [options]);
-
-  useEffect(() => {
     setSearchedVal(searchBoxContent);
-    setFilteredOptions(filterOptions(options, searchBoxContent));
+    setFilteredOptions(
+      options.filter((option) =>
+        option.toLowerCase().includes(searchBoxContent.toLowerCase())
+      )
+    );
     setIsSearching(false);
     setIsOpen(searchBoxContent.length > 0);
-  }, [
-    useDebounce(searchBoxContent, isDebounced ? 300 : 0),
-    options,
-    filterOptions,
-  ]);
+  }, [useDebounce(searchBoxContent, isDebounced ? 300 : 0), options]);
 
   const handleOptionChange = (option: string) => {
     const prevStateSelected = selectedOptions[option];
@@ -82,11 +76,7 @@ const SearchBox = ({
       alert("Only one option can be selected");
       return;
     }
-    setCountSelected((prevCount) => prevCount + (prevStateSelected ? -1 : 1));
-    setSelectedOptions((prevOptions) => ({
-      ...prevOptions,
-      [option]: !prevOptions[option],
-    }));
+    onSelectOption(option, prevStateSelected);
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,7 +117,7 @@ const SearchBox = ({
         });
       }
     }
-  }, [focusedIndex, refs.floating]);
+  }, [focusedIndex]);
 
   const clearSearchBox = () => {
     setsearchBoxContent("");
@@ -136,32 +126,20 @@ const SearchBox = ({
   };
 
   return (
-    <div>
+    <div className="relative">
       <label className="text-lg font-medium text-indigo-500">{label}</label>
-      <div className="relative my-2">
-        <div className=" flex w-full py-3 pl-3 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-          <img src={logo} alt="search icon" className="w-7 h-7" />
-          <input
-            name="SearchBox"
-            disabled={isDisabled}
-            placeholder={placeholder}
-            onChange={handleInputChange}
-            value={searchBoxContent}
-            onKeyDown={handleKeyDown}
-            ref={refs.setReference}
-            className="w-full outline-none px-3"
-            style={{ textDecoration: "none" }} //remove underline
-          />
-          {isSearching && (
-            <div className="pr-2">
-              <Spinner />
-            </div>
-          )}
-        </div>
+      <div>
+        <SearchInput
+          placeholder={placeholder}
+          disabled={isDisabled}
+          value={searchBoxContent}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          setReference={refs.setReference}
+          isSearching={isSearching}
+          onBlur={clearSearchBox}
+        />
 
-        {description && (
-          <p className="text-sm text-gray-500 mb-4">{description}</p>
-        )}
         {isOpen && (
           <div
             ref={refs.setFloating}
@@ -171,57 +149,21 @@ const SearchBox = ({
             }}
           >
             {filteredOptions.map((option, index) => (
-              <div
+              <SearchItem
                 key={option}
-                className={`cursor-pointer flex justify-between  relative py-3 px-7 ${
-                  focusedIndex === index
-                    ? "text-white bg-indigo-500"
-                    : "text-gray-900"
-                }`}
-                onMouseEnter={() => setFocusedIndex(index)}
-                onMouseLeave={() => setFocusedIndex(-1)}
-                onClick={() => handleOptionChange(option)}
-                role="option"
-                aria-selected={focusedIndex === index}
-              >
-                <span
-                  className={`${
-                    focusedIndex === index ? "font-semibold" : "font-normal"
-                  }`}
-                >
-                  {option}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={selectedOptions[option]}
-                  className={`form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 rounded`}
-                />
-              </div>
+                option={option}
+                focusedIndex={focusedIndex}
+                index={index}
+                selectedOptions={selectedOptions}
+                handleOptionChange={handleOptionChange}
+                setFocusedIndex={setFocusedIndex}
+              />
             ))}
           </div>
         )}
-      </div>
-      <div className="flex justify-center mb-4 space-x-4 ">
-        <label>
-          <input
-            type="checkbox"
-            name="isDisabledCheckbox"
-            checked={isDisabled}
-            onChange={() => setIsDisabled(!isDisabled)}
-            className="mr-1.5"
-          />
-          Disabled
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            name="isMultipleCheckbox"
-            checked={isMultiple}
-            onChange={() => setIsMultiple(!isMultiple)}
-            className="mr-1.5"
-          />
-          Multiple
-        </label>
+        {description && (
+          <p className="text-sm text-gray-500 mb-4">{description}</p>
+        )}
       </div>
     </div>
   );
