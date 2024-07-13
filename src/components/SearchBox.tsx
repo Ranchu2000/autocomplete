@@ -8,43 +8,37 @@ import {
   offset,
   shift,
 } from "@floating-ui/react";
+import logo from "../assets/search.png";
 
 interface Props {
   description: string;
-  isDisabled: boolean;
   label: string;
   placeholder: string;
   options: string[];
-  value: string;
-  isMultiple: boolean;
-  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isDebounced: boolean;
   filterOptions: (options: string[], inputValue: string) => string[];
-  isLoading: boolean;
 }
 
 const SearchBox = ({
   description,
-  isDisabled,
   label,
   placeholder,
   options,
-  value,
-  isMultiple,
-  onChange,
-  onInputChange,
+  isDebounced,
   filterOptions,
-  isLoading,
 }: Props) => {
   const [filteredOptions, setFilteredOptions] = useState<string[]>([]);
   const [countSelected, setCountSelected] = useState<number>(0);
   const [selectedOptions, setSelectedOptions] = useState<{
     [key: string]: boolean;
   }>({});
-  const [searchedVal, setSearchedVal] = useState<string>("");
+  const [_, setSearchedVal] = useState<string>("");
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(-1);
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isDisabled, setIsDisabled] = useState(false);
+  const [isMultiple, setIsMultiple] = useState(false);
+  const [searchBoxContent, setsearchBoxContent] = useState<string>("");
 
   const { refs, floatingStyles, context } = useFloating({
     middleware: [offset(5), flip(), shift()],
@@ -72,15 +66,20 @@ const SearchBox = ({
   }, [options]);
 
   useEffect(() => {
-    setSearchedVal(value);
-    setFilteredOptions(filterOptions(options, value));
+    setSearchedVal(searchBoxContent);
+    setFilteredOptions(filterOptions(options, searchBoxContent));
     setIsSearching(false);
-    setIsOpen(value.length > 0);
-  }, [useDebounce(value, 300), options, filterOptions]);
+    setIsOpen(searchBoxContent.length > 0);
+  }, [
+    useDebounce(searchBoxContent, isDebounced ? 300 : 0),
+    options,
+    filterOptions,
+  ]);
 
   const handleOptionChange = (option: string) => {
     const prevStateSelected = selectedOptions[option];
     if (!isMultiple && !prevStateSelected && countSelected > 0) {
+      alert("Only one option can be selected");
       return;
     }
     setCountSelected((prevCount) => prevCount + (prevStateSelected ? -1 : 1));
@@ -91,7 +90,7 @@ const SearchBox = ({
   };
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onInputChange(event);
+    setsearchBoxContent(event.target.value);
     setIsSearching(true);
     setFocusedIndex(-1);
     setIsOpen(true);
@@ -112,7 +111,7 @@ const SearchBox = ({
       event.preventDefault();
       handleOptionChange(filteredOptions[focusedIndex]);
     } else if (event.key === "Escape") {
-      setIsOpen(false);
+      clearSearchBox();
     }
   };
 
@@ -130,67 +129,100 @@ const SearchBox = ({
     }
   }, [focusedIndex, refs.floating]);
 
+  const clearSearchBox = () => {
+    setsearchBoxContent("");
+    setFilteredOptions([]);
+    setIsOpen(false);
+  };
+
   return (
     <div>
-      {isLoading ? (
-        <Spinner />
-      ) : (
-        <div>
-          <div>
-            <span>Selected: {countSelected}</span>
-            <span>Searched term: {searchedVal}</span>
-          </div>
-          <label>{label}</label>
-          <div className="relative ring-2 rounded-md border-blue-500">
-            <input
-              name="SearchBox"
-              disabled={isDisabled}
-              placeholder={placeholder}
-              onChange={handleInputChange}
-              value={value}
-              onKeyDown={handleKeyDown}
-              ref={refs.setReference}
-              className="w-full py-2 px-3 outline-none border-none bg-transparent"
-            />
-            {isSearching && (
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                <Spinner />
-              </div>
-            )}
-          </div>
-          {description && <p>{description}</p>}
-          {isOpen && (
-            <div
-              ref={refs.setFloating}
-              className="bg-slate-300 p-4 rounded-lg shadow-lg"
-              style={{
-                ...floatingStyles,
-                width: "max-content",
-                maxHeight: "200px",
-                overflowY: "auto",
-              }}
-            >
-              {filteredOptions.map((option, index) => (
-                <div
-                  key={option}
-                  className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer
-                    ${focusedIndex === index && "bg-gray-200"}`}
-                  onMouseEnter={() => setFocusedIndex(index)}
-                  onMouseLeave={() => setFocusedIndex(-1)}
-                  onClick={() => handleOptionChange(option)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedOptions[option]}
-                    onChange={() => {}}
-                  />
-                  <span>{option}</span>
-                </div>
-              ))}
+      <label className="text-lg font-medium text-indigo-500">{label}</label>
+      <div className="relative my-2">
+        <div className=" flex w-full py-3 pl-3 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+          <img src={logo} alt="search icon" className="w-7 h-7" />
+          <input
+            name="SearchBox"
+            disabled={isDisabled}
+            placeholder={placeholder}
+            onChange={handleInputChange}
+            value={searchBoxContent}
+            onKeyDown={handleKeyDown}
+            ref={refs.setReference}
+            className="w-full outline-none px-3"
+            style={{ textDecoration: "none" }} //remove underline
+          />
+          {isSearching && (
+            <div className="pr-2">
+              <Spinner />
             </div>
           )}
         </div>
-      )}
+
+        {description && (
+          <p className="text-sm text-gray-500 mb-4">{description}</p>
+        )}
+        {isOpen && (
+          <div
+            ref={refs.setFloating}
+            className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm"
+            style={{
+              ...floatingStyles,
+            }}
+          >
+            {filteredOptions.map((option, index) => (
+              <div
+                key={option}
+                className={`cursor-pointer flex justify-between  relative py-3 px-7 ${
+                  focusedIndex === index
+                    ? "text-white bg-indigo-500"
+                    : "text-gray-900"
+                }`}
+                onMouseEnter={() => setFocusedIndex(index)}
+                onMouseLeave={() => setFocusedIndex(-1)}
+                onClick={() => handleOptionChange(option)}
+                role="option"
+                aria-selected={focusedIndex === index}
+              >
+                <span
+                  className={`${
+                    focusedIndex === index ? "font-semibold" : "font-normal"
+                  }`}
+                >
+                  {option}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={selectedOptions[option]}
+                  className={`form-checkbox h-4 w-4 text-indigo-600 focus:ring-indigo-500 rounded`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-center mb-4 space-x-4 ">
+        <label>
+          <input
+            type="checkbox"
+            name="isDisabledCheckbox"
+            checked={isDisabled}
+            onChange={() => setIsDisabled(!isDisabled)}
+            className="mr-1.5"
+          />
+          Disabled
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            name="isMultipleCheckbox"
+            checked={isMultiple}
+            onChange={() => setIsMultiple(!isMultiple)}
+            className="mr-1.5"
+          />
+          Multiple
+        </label>
+      </div>
     </div>
   );
 };
